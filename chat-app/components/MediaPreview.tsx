@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
 
-export default function MediaPreview({ file, onCancel }: { file: File; onCancel: () => void }) {
+export default function MediaPreview({
+  file,
+  onCancel,
+  disabled = false,
+}: {
+  file: File;
+  onCancel: () => void;
+  disabled?: boolean;
+}) {
   const [url, setUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -19,7 +27,12 @@ export default function MediaPreview({ file, onCancel }: { file: File; onCancel:
         <video src={url} className="h-16 w-16 rounded object-cover" />
       )}
       <span className="flex-1 truncate text-sm">{file.name}</span>
-      <button type="button" onClick={onCancel} className="text-sm text-red-600">
+      <button
+        type="button"
+        onClick={onCancel}
+        disabled={disabled}
+        className="text-sm text-red-600 disabled:opacity-50"
+      >
         Batal
       </button>
     </div>

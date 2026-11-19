@@ -27,12 +27,17 @@ export default function MessageInput({
     if (file) {
       setSending(true);
       const { url, error: uploadError, type } = await uploadChatMedia(file, uid);
-      setSending(false);
       if (uploadError || !url || !type) {
+        setSending(false);
         setError(uploadError ?? "Gagal mengunggah file.");
         return;
       }
-      await sendMessage(uid, name, type, url);
+      const { error: sendError } = await sendMessage(uid, name, type, url);
+      setSending(false);
+      if (sendError) {
+        setError(sendError);
+        return;
+      }
       setFile(null);
       onSent?.();
       return;
@@ -52,13 +57,16 @@ export default function MessageInput({
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-2 border-t p-3">
-      {file && <MediaPreview file={file} onCancel={() => setFile(null)} />}
+      {file && (
+        <MediaPreview file={file} onCancel={() => setFile(null)} disabled={sending} />
+      )}
       {error && <p className="text-sm text-red-600">{error}</p>}
       <div className="flex items-center gap-2">
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          className="text-xl"
+          disabled={sending}
+          className="text-xl disabled:opacity-50"
           aria-label="Lampirkan file"
         >
           📎
@@ -68,7 +76,10 @@ export default function MessageInput({
           type="file"
           accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm"
           className="hidden"
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+          onChange={(e) => {
+            if (sending) return;
+            setFile(e.target.files?.[0] ?? null);
+          }}
         />
         <input
           type="text"
