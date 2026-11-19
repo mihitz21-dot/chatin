@@ -1,3 +1,8 @@
+-- Grant base table privileges: RLS policies alone don't grant access without this,
+-- since Supabase only auto-grants it for tables created through the Table Editor UI,
+-- not through raw SQL.
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+
 -- USERS TABLE
 CREATE TABLE users (
   id          uuid REFERENCES auth.users PRIMARY KEY,
@@ -21,6 +26,8 @@ CREATE POLICY "update own user"
   ON users FOR UPDATE
   USING (auth.uid() = id);
 
+GRANT SELECT, INSERT, UPDATE ON users TO authenticated;
+
 -- MESSAGES TABLE
 CREATE TABLE messages (
   id          uuid DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -40,6 +47,8 @@ CREATE POLICY "read messages"
 CREATE POLICY "insert own message"
   ON messages FOR INSERT
   WITH CHECK (auth.uid() = uid);
+
+GRANT SELECT, INSERT ON messages TO authenticated;
 
 -- STORAGE: media bucket (chat images/videos)
 INSERT INTO storage.buckets (id, name, public)
