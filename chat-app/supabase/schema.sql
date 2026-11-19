@@ -28,25 +28,60 @@ CREATE POLICY "update own user"
 
 GRANT SELECT, INSERT, UPDATE ON users TO authenticated;
 
+-- CONVERSATIONS TABLE (private 1-to-1 chats between two users)
+CREATE TABLE conversations (
+  id          uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_a_id   uuid REFERENCES auth.users NOT NULL,
+  user_b_id   uuid REFERENCES auth.users NOT NULL,
+  created_at  timestamptz DEFAULT now(),
+  UNIQUE (user_a_id, user_b_id)
+);
+
+ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
+
+GRANT SELECT, INSERT ON conversations TO authenticated;
+
+CREATE POLICY "read own conversations"
+  ON conversations FOR SELECT
+  USING (auth.uid() = user_a_id OR auth.uid() = user_b_id);
+
+CREATE POLICY "insert own conversation"
+  ON conversations FOR INSERT
+  WITH CHECK (auth.uid() = user_a_id OR auth.uid() = user_b_id);
+
 -- MESSAGES TABLE
 CREATE TABLE messages (
-  id          uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  uid         uuid REFERENCES auth.users NOT NULL,
-  name        text NOT NULL,
-  type        text CHECK (type IN ('text','image','video')),
-  content     text NOT NULL,
-  created_at  timestamptz DEFAULT now()
+  id               uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  uid              uuid REFERENCES auth.users NOT NULL,
+  name             text NOT NULL,
+  type             text CHECK (type IN ('text','image','video')),
+  content          text NOT NULL,
+  conversation_id  uuid REFERENCES conversations NOT NULL,
+  created_at       timestamptz DEFAULT now()
 );
 
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "read messages"
+CREATE POLICY "read own conversation messages"
   ON messages FOR SELECT
-  USING (auth.role() = 'authenticated');
+  USING (
+    EXISTS (
+      SELECT 1 FROM conversations c
+      WHERE c.id = messages.conversation_id
+        AND (c.user_a_id = auth.uid() OR c.user_b_id = auth.uid())
+    )
+  );
 
-CREATE POLICY "insert own message"
+CREATE POLICY "insert own conversation messages"
   ON messages FOR INSERT
-  WITH CHECK (auth.uid() = uid);
+  WITH CHECK (
+    auth.uid() = uid
+    AND EXISTS (
+      SELECT 1 FROM conversations c
+      WHERE c.id = messages.conversation_id
+        AND (c.user_a_id = auth.uid() OR c.user_b_id = auth.uid())
+    )
+  );
 
 GRANT SELECT, INSERT ON messages TO authenticated;
 
