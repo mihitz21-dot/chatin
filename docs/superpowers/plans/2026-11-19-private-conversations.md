@@ -146,8 +146,12 @@ git commit -m "feat: add conversations table and conversation_id on messages for
 - Produces:
   - `type OtherUser = { id: string; username: string; name: string; avatar_url: string | null }`
   - `type ConversationSummary = { id: string; otherUser: OtherUser; lastMessage: { content: string; type: "text" | "image" | "video"; created_at: string } | null }`
-  - `fetchOtherUsers(myUid: string): Promise<OtherUser[]>`
-  - `fetchConversations(myUid: string): Promise<ConversationSummary[]>`
+  - `fetchOtherUsers(myUid: string): Promise<{ data: OtherUser[]; error: string | null }>`
+  - `fetchConversations(myUid: string): Promise<{ data: ConversationSummary[]; error: string | null }>`
+  - (Amended after Task 2's review: both now surface top-level query errors instead of
+    silently returning an empty array. A per-conversation last-message fetch failure
+    inside `fetchConversations` still degrades to `lastMessage: null` for that one row —
+    only the two top-level queries, `conversations` and `users`, set the returned `error`.)
   - `getOrCreateConversation(myUid: string, otherUid: string): Promise<{ id: string | null; error: string | null }>`
   - Used by Task 6 (`/chat/new`), Task 7 (`/chat/[conversationId]`), and Task 8 (`/chat` list).
 
@@ -656,7 +660,12 @@ export default function NewConversationPage() {
       }
       const uid = sessionData.session.user.id;
       setMyUid(uid);
-      setUsers(await fetchOtherUsers(uid));
+      const { data, error: fetchError } = await fetchOtherUsers(uid);
+      if (fetchError) {
+        setError(fetchError);
+        return;
+      }
+      setUsers(data);
     }
     init();
   }, [router]);
@@ -932,11 +941,12 @@ export default function ConversationListPage() {
         router.push("/");
         return;
       }
-      try {
-        setConversations(await fetchConversations(sessionData.session.user.id));
-      } catch {
+      const { data, error: fetchError } = await fetchConversations(sessionData.session.user.id);
+      if (fetchError) {
         setError("Gagal memuat daftar percakapan.");
+        return;
       }
+      setConversations(data);
     }
     init();
   }, [router]);
