@@ -1,10 +1,11 @@
 -- Conversations table
 CREATE TABLE conversations (
   id          uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_a_id   uuid REFERENCES auth.users NOT NULL,
-  user_b_id   uuid REFERENCES auth.users NOT NULL,
+  user_a_id   uuid REFERENCES auth.users ON DELETE CASCADE NOT NULL,
+  user_b_id   uuid REFERENCES auth.users ON DELETE CASCADE NOT NULL,
   created_at  timestamptz DEFAULT now(),
-  UNIQUE (user_a_id, user_b_id)
+  UNIQUE (user_a_id, user_b_id),
+  CHECK (user_a_id < user_b_id)
 );
 
 ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
@@ -25,7 +26,9 @@ CREATE POLICY "insert own conversation"
 -- not real user data.
 TRUNCATE TABLE messages;
 
-ALTER TABLE messages ADD COLUMN conversation_id uuid REFERENCES conversations NOT NULL;
+ALTER TABLE messages ADD COLUMN conversation_id uuid REFERENCES conversations ON DELETE CASCADE NOT NULL;
+
+CREATE INDEX ON messages (conversation_id, created_at);
 
 DROP POLICY "read messages" ON messages;
 DROP POLICY "insert own message" ON messages;

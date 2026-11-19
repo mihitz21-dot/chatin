@@ -31,10 +31,11 @@ GRANT SELECT, INSERT, UPDATE ON users TO authenticated;
 -- CONVERSATIONS TABLE (private 1-to-1 chats between two users)
 CREATE TABLE conversations (
   id          uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_a_id   uuid REFERENCES auth.users NOT NULL,
-  user_b_id   uuid REFERENCES auth.users NOT NULL,
+  user_a_id   uuid REFERENCES auth.users ON DELETE CASCADE NOT NULL,
+  user_b_id   uuid REFERENCES auth.users ON DELETE CASCADE NOT NULL,
   created_at  timestamptz DEFAULT now(),
-  UNIQUE (user_a_id, user_b_id)
+  UNIQUE (user_a_id, user_b_id),
+  CHECK (user_a_id < user_b_id)
 );
 
 ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
@@ -56,9 +57,11 @@ CREATE TABLE messages (
   name             text NOT NULL,
   type             text CHECK (type IN ('text','image','video')),
   content          text NOT NULL,
-  conversation_id  uuid REFERENCES conversations NOT NULL,
+  conversation_id  uuid REFERENCES conversations ON DELETE CASCADE NOT NULL,
   created_at       timestamptz DEFAULT now()
 );
+
+CREATE INDEX ON messages (conversation_id, created_at);
 
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 

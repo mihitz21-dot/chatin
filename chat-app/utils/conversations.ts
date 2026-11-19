@@ -12,6 +12,7 @@ export type ConversationSummary = {
   id: string;
   otherUser: OtherUser;
   lastMessage: { content: string; type: Message["type"]; created_at: string } | null;
+  created_at: string;
 };
 
 export async function fetchOtherUsers(
@@ -34,12 +35,16 @@ export async function getOrCreateConversation(
 ): Promise<{ id: string | null; error: string | null }> {
   const [userAId, userBId] = canonicalOrder(myUid, otherUid);
 
-  const { data: existing } = await supabase
+  const { data: existing, error: existingError } = await supabase
     .from("conversations")
     .select("id")
     .eq("user_a_id", userAId)
     .eq("user_b_id", userBId)
     .maybeSingle();
+
+  if (existingError) {
+    return { id: null, error: existingError.message };
+  }
 
   if (existing) {
     return { id: existing.id, error: null };
@@ -52,6 +57,21 @@ export async function getOrCreateConversation(
     .single();
 
   if (error || !created) {
+    // Unique-violation (23505) means a concurrent request already created
+    // this conversation; re-fetch it instead of surfacing a raw DB error.
+    if (error?.code === "23505") {
+      const { data: retryExisting, error: retryError } = await supabase
+        .from("conversations")
+        .select("id")
+        .eq("user_a_id", userAId)
+        .eq("user_b_id", userBId)
+        .maybeSingle();
+
+      if (!retryError && retryExisting) {
+        return { id: retryExisting.id, error: null };
+      }
+    }
+
     return { id: null, error: error?.message ?? "Gagal membuat percakapan." };
   }
 
@@ -63,7 +83,7 @@ export async function fetchConversations(
 ): Promise<{ data: ConversationSummary[]; error: string | null }> {
   const { data: conversations, error: conversationsError } = await supabase
     .from("conversations")
-    .select("id, user_a_id, user_b_id")
+    .select("id, user_a_id, user_b_id, created_at")
     .or(`user_a_id.eq.${myUid},user_b_id.eq.${myUid}`);
 
   if (conversationsError) {
@@ -104,8 +124,17 @@ export async function fetchConversations(
       id: conv.id,
       otherUser,
       lastMessage: lastMessages && lastMessages.length > 0 ? (lastMessages[0] as any) : null,
+      created_at: conv.created_at,
     });
   }
+
+  // Sorted by newest message first (falling back to the conversation's own
+  // created_at for conversations with no messages yet).
+  summaries.sort((a, b) => {
+    const aKey = a.lastMessage?.created_at ?? a.created_at;
+    const bKey = b.lastMessage?.created_at ?? b.created_at;
+    return new Date(bKey).getTime() - new Date(aKey).getTime();
+  });
 
   return { data: summaries, error: null };
 }
