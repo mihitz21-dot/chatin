@@ -21,20 +21,55 @@ export async function POST(request: NextRequest) {
 
   const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-  await adminClient.from("messages").delete().eq("uid", uid);
+  const errors: string[] = [];
 
-  const { data: avatarFiles } = await adminClient.storage.from("avatars").list(uid);
-  if (avatarFiles && avatarFiles.length > 0) {
-    await adminClient.storage
-      .from("avatars")
-      .remove(avatarFiles.map((f) => `${uid}/${f.name}`));
+  const { error: messagesError } = await adminClient.from("messages").delete().eq("uid", uid);
+  if (messagesError) {
+    errors.push(messagesError.message);
   }
 
-  await adminClient.from("users").delete().eq("id", uid);
+  const { data: avatarFiles, error: avatarListError } = await adminClient.storage
+    .from("avatars")
+    .list(uid);
+  if (avatarListError) {
+    errors.push(avatarListError.message);
+  }
+  if (avatarFiles && avatarFiles.length > 0) {
+    const { error: avatarRemoveError } = await adminClient.storage
+      .from("avatars")
+      .remove(avatarFiles.map((f) => `${uid}/${f.name}`));
+    if (avatarRemoveError) {
+      errors.push(avatarRemoveError.message);
+    }
+  }
+
+  const { data: mediaFiles, error: mediaListError } = await adminClient.storage
+    .from("media")
+    .list(uid);
+  if (mediaListError) {
+    errors.push(mediaListError.message);
+  }
+  if (mediaFiles && mediaFiles.length > 0) {
+    const { error: mediaRemoveError } = await adminClient.storage
+      .from("media")
+      .remove(mediaFiles.map((f) => `${uid}/${f.name}`));
+    if (mediaRemoveError) {
+      errors.push(mediaRemoveError.message);
+    }
+  }
+
+  const { error: usersError } = await adminClient.from("users").delete().eq("id", uid);
+  if (usersError) {
+    errors.push(usersError.message);
+  }
 
   const { error: deleteError } = await adminClient.auth.admin.deleteUser(uid);
   if (deleteError) {
-    return NextResponse.json({ error: deleteError.message }, { status: 500 });
+    errors.push(deleteError.message);
+  }
+
+  if (errors.length > 0) {
+    return NextResponse.json({ error: errors.join("; ") }, { status: 500 });
   }
 
   return NextResponse.json({ error: null });
