@@ -17,13 +17,18 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const { error: loginError } = await loginUser(username, password);
-    setLoading(false);
-    if (loginError) {
-      setError(loginError);
-      return;
+    try {
+      const { error: loginError } = await loginUser(username, password);
+      if (loginError) {
+        setError(loginError);
+        setLoading(false);
+        return;
+      }
+      router.push("/chat");
+    } catch {
+      setError("Terjadi kesalahan, coba lagi.");
+      setLoading(false);
     }
-    router.push("/chat");
   }
 
   return (
