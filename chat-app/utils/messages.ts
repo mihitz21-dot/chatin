@@ -10,29 +10,41 @@ export type Message = {
 };
 
 export async function sendMessage(
+  conversationId: string,
   uid: string,
   name: string,
   type: Message["type"],
   content: string
 ): Promise<{ error: string | null }> {
-  const { error } = await supabase.from("messages").insert({ uid, name, type, content });
+  const { error } = await supabase
+    .from("messages")
+    .insert({ conversation_id: conversationId, uid, name, type, content });
   return { error: error ? error.message : null };
 }
 
-export async function fetchMessages(): Promise<Message[]> {
+export async function fetchMessages(conversationId: string): Promise<Message[]> {
   const { data } = await supabase
     .from("messages")
     .select("*")
+    .eq("conversation_id", conversationId)
     .order("created_at", { ascending: true });
   return (data as Message[]) ?? [];
 }
 
-export function subscribeToMessages(onInsert: (message: Message) => void): () => void {
+export function subscribeToMessages(
+  conversationId: string,
+  onInsert: (message: Message) => void
+): () => void {
   const channel = supabase
-    .channel("messages-realtime")
+    .channel(`messages-realtime-${conversationId}`)
     .on(
       "postgres_changes",
-      { event: "INSERT", schema: "public", table: "messages" },
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "messages",
+        filter: `conversation_id=eq.${conversationId}`,
+      },
       (payload: { new: Message }) => onInsert(payload.new)
     )
     .subscribe();
