@@ -29,7 +29,7 @@ describe("supabase client", () => {
     const { supabase } = await import("./supabase");
 
     expect(supabase).toBeTruthy();
-    expect((supabase as any).supabaseUrl).toBe(TEST_URL);
+    expect((supabase as unknown as { supabaseUrl: string }).supabaseUrl).toBe(TEST_URL);
   });
 
   it("throws a clear error when the env vars are missing", async () => {
