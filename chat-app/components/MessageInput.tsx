@@ -6,10 +6,12 @@ import { uploadChatMedia } from "@/utils/upload";
 import { sendMessage } from "@/utils/messages";
 
 export default function MessageInput({
+  conversationId,
   uid,
   name,
   onSent,
 }: {
+  conversationId: string;
   uid: string;
   name: string;
   onSent?: () => void;
@@ -32,7 +34,7 @@ export default function MessageInput({
         setError(uploadError ?? "Gagal mengunggah file.");
         return;
       }
-      const { error: sendError } = await sendMessage(uid, name, type, url);
+      const { error: sendError } = await sendMessage(conversationId, uid, name, type, url);
       setSending(false);
       if (sendError) {
         setError(sendError);
@@ -45,7 +47,7 @@ export default function MessageInput({
 
     if (!text.trim()) return;
     setSending(true);
-    const { error: sendError } = await sendMessage(uid, name, "text", text.trim());
+    const { error: sendError } = await sendMessage(conversationId, uid, name, "text", text.trim());
     setSending(false);
     if (sendError) {
       setError(sendError);
