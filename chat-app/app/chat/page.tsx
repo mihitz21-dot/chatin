@@ -17,13 +17,16 @@ export default function ChatPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [avatarsByUid, setAvatarsByUid] = useState<Record<string, string | null>>({});
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let unsubscribe: (() => void) | null = null;
+    let cancelled = false;
 
     async function init() {
       const { data: sessionData } = await supabase.auth.getSession();
+      if (cancelled) return;
       if (!sessionData.session) {
         router.push("/");
         return;
@@ -36,6 +39,7 @@ export default function ChatPage() {
         .eq("id", uid)
         .single();
 
+      if (cancelled) return;
       if (profileError || !userRow) {
         setError("Gagal memuat profil. Coba logout dan login kembali.");
         return;
@@ -43,14 +47,35 @@ export default function ChatPage() {
 
       setProfile(userRow as Profile);
 
+      const { data: usersData } = await supabase.from("users").select("id, avatar_url");
+      if (cancelled) return;
+      if (usersData) {
+        const map: Record<string, string | null> = {};
+        for (const u of usersData as { id: string; avatar_url: string | null }[]) {
+          map[u.id] = u.avatar_url;
+        }
+        setAvatarsByUid(map);
+      }
+
       setMessages(await fetchMessages());
-      unsubscribe = subscribeToMessages((message) => {
-        setMessages((prev) => [...prev, message]);
+      if (cancelled) return;
+
+      const unsub = subscribeToMessages((message) => {
+        setMessages((prev) => (prev.some((m) => m.id === message.id) ? prev : [...prev, message]));
       });
+
+      if (cancelled) {
+        unsub();
+        return;
+      }
+      unsubscribe = unsub;
     }
 
     init();
-    return () => unsubscribe?.();
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
   }, [router]);
 
   useEffect(() => {
@@ -96,7 +121,7 @@ export default function ChatPage() {
             key={message.id}
             message={message}
             isOwn={message.uid === profile.id}
-            avatarUrl={message.uid === profile.id ? profile.avatar_url : null}
+            avatarUrl={avatarsByUid[message.uid] ?? null}
           />
         ))}
         <div ref={bottomRef} />

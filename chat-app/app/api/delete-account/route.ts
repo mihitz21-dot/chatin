@@ -1,5 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
+
+const STORAGE_LIST_PAGE_SIZE = 1000;
+
+async function listAllFiles(
+  client: SupabaseClient,
+  bucket: string,
+  path: string
+): Promise<{ files: { name: string }[]; error: string | null }> {
+  const files: { name: string }[] = [];
+  let offset = 0;
+
+  while (true) {
+    const { data, error } = await client.storage
+      .from(bucket)
+      .list(path, { limit: STORAGE_LIST_PAGE_SIZE, offset });
+
+    if (error) {
+      return { files, error: error.message };
+    }
+
+    if (!data || data.length === 0) {
+      break;
+    }
+
+    files.push(...data);
+
+    if (data.length < STORAGE_LIST_PAGE_SIZE) {
+      break;
+    }
+
+    offset += STORAGE_LIST_PAGE_SIZE;
+  }
+
+  return { files, error: null };
+}
 
 export async function POST(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
@@ -28,13 +63,15 @@ export async function POST(request: NextRequest) {
     errors.push(messagesError.message);
   }
 
-  const { data: avatarFiles, error: avatarListError } = await adminClient.storage
-    .from("avatars")
-    .list(uid);
+  const { files: avatarFiles, error: avatarListError } = await listAllFiles(
+    adminClient,
+    "avatars",
+    uid
+  );
   if (avatarListError) {
-    errors.push(avatarListError.message);
+    errors.push(avatarListError);
   }
-  if (avatarFiles && avatarFiles.length > 0) {
+  if (avatarFiles.length > 0) {
     const { error: avatarRemoveError } = await adminClient.storage
       .from("avatars")
       .remove(avatarFiles.map((f) => `${uid}/${f.name}`));
@@ -43,13 +80,15 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const { data: mediaFiles, error: mediaListError } = await adminClient.storage
-    .from("media")
-    .list(uid);
+  const { files: mediaFiles, error: mediaListError } = await listAllFiles(
+    adminClient,
+    "media",
+    uid
+  );
   if (mediaListError) {
-    errors.push(mediaListError.message);
+    errors.push(mediaListError);
   }
-  if (mediaFiles && mediaFiles.length > 0) {
+  if (mediaFiles.length > 0) {
     const { error: mediaRemoveError } = await adminClient.storage
       .from("media")
       .remove(mediaFiles.map((f) => `${uid}/${f.name}`));

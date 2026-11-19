@@ -32,19 +32,15 @@ describe("registerUser", () => {
     expect(supabase.auth.signUp).not.toHaveBeenCalled();
   });
 
-  it("checks username availability then signs up with synthetic email", async () => {
-    const maybeSingle = vi.fn().mockResolvedValue({ data: null });
-    const eq = vi.fn().mockReturnValue({ maybeSingle });
-    const select = vi.fn().mockReturnValue({ eq });
-    (supabase.from as any).mockReturnValue({ select });
+  it("signs up with synthetic email and inserts the user row", async () => {
     (supabase.auth.signUp as any).mockResolvedValue({
       data: { user: { id: "user-1" } },
       error: null,
     });
     const insert = vi.fn().mockResolvedValue({ error: null });
     (supabase.from as any).mockImplementation((table: string) => {
-      if (table === "users") return { select, insert };
-      return { select };
+      if (table === "users") return { insert };
+      return {};
     });
 
     const result = await registerUser("budi123", "password123");
@@ -56,16 +52,26 @@ describe("registerUser", () => {
     expect(result.error).toBeNull();
   });
 
-  it("returns an error when username is already taken", async () => {
-    const maybeSingle = vi.fn().mockResolvedValue({ data: { username: "budi123" } });
-    const eq = vi.fn().mockReturnValue({ maybeSingle });
-    const select = vi.fn().mockReturnValue({ eq });
-    (supabase.from as any).mockReturnValue({ select });
+  it("maps a 'user already registered' signUp error to Username sudah dipakai", async () => {
+    (supabase.auth.signUp as any).mockResolvedValue({
+      data: { user: null },
+      error: { message: "User already registered", code: "user_already_exists" },
+    });
 
     const result = await registerUser("budi123", "password123");
 
-    expect(result.error).toMatch(/sudah dipakai/i);
-    expect(supabase.auth.signUp).not.toHaveBeenCalled();
+    expect(result.error).toBe("Username sudah dipakai.");
+  });
+
+  it("maps a signUp error by code even if the message differs in casing", async () => {
+    (supabase.auth.signUp as any).mockResolvedValue({
+      data: { user: null },
+      error: { message: "USER ALREADY REGISTERED", code: "USER_ALREADY_EXISTS" },
+    });
+
+    const result = await registerUser("budi123", "password123");
+
+    expect(result.error).toBe("Username sudah dipakai.");
   });
 });
 

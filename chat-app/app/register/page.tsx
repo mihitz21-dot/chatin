@@ -35,7 +35,9 @@ export default function RegisterPage() {
       const { error: loginError } = await loginUser(username, password);
       if (loginError) {
         setLoading(false);
-        setError(loginError);
+        setError(
+          "Registrasi berhasil, tapi gagal login otomatis. Coba login manual, atau cek pengaturan Supabase (Confirm Email harus dimatikan)."
+        );
         return;
       }
       router.push("/chat");

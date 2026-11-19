@@ -7,6 +7,13 @@ export function usernameToEmail(username: string): string {
   return `${username.trim().toLowerCase()}@${SYNTHETIC_EMAIL_DOMAIN}`;
 }
 
+function isUsernameTakenError(error: { message?: string; code?: string } | null): boolean {
+  if (!error) return false;
+  const message = error.message?.toLowerCase() ?? "";
+  const code = error.code?.toLowerCase() ?? "";
+  return message.includes("already registered") || code === "user_already_exists";
+}
+
 export async function registerUser(
   username: string,
   password: string
@@ -17,22 +24,15 @@ export async function registerUser(
 
   const normalized = username.trim().toLowerCase();
 
-  const { data: existing } = await supabase
-    .from("users")
-    .select("username")
-    .eq("username", normalized)
-    .maybeSingle();
-
-  if (existing) {
-    return { error: "Username sudah dipakai." };
-  }
-
   const { data, error: signUpError } = await supabase.auth.signUp({
     email: usernameToEmail(normalized),
     password,
   });
 
   if (signUpError || !data.user) {
+    if (isUsernameTakenError(signUpError)) {
+      return { error: "Username sudah dipakai." };
+    }
     return { error: signUpError?.message ?? "Gagal mendaftar." };
   }
 
