@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useEffect, useRef, useState, FormEvent } from "react";
 import { uploadAvatar, updateProfile } from "@/utils/profile";
 
 export default function ProfileForm({
@@ -16,15 +16,30 @@ export default function ProfileForm({
 }) {
   const [name, setName] = useState(initialName);
   const [file, setFile] = useState<File | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(initialAvatarUrl);
   const [previewUrl, setPreviewUrl] = useState<string | null>(initialAvatarUrl);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Keep the latest preview URL in a ref so the unmount cleanup revokes the right blob.
+  const previewRef = useRef<string | null>(previewUrl);
+  previewRef.current = previewUrl;
+
+  useEffect(() => {
+    return () => {
+      const current = previewRef.current;
+      if (current && current.startsWith("blob:")) URL.revokeObjectURL(current);
+    };
+  }, []);
+
   function handleFileChange(selected: File | null) {
     setFile(selected);
     setError(null);
-    if (selected) setPreviewUrl(URL.createObjectURL(selected));
+    if (selected) {
+      if (previewUrl && previewUrl.startsWith("blob:")) URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(URL.createObjectURL(selected));
+    }
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -34,7 +49,7 @@ export default function ProfileForm({
     setSaving(true);
 
     try {
-      let avatarUrl = initialAvatarUrl;
+      let nextAvatarUrl = avatarUrl;
       if (file) {
         const { url, error: uploadError } = await uploadAvatar(file, uid);
         if (uploadError || !url) {
@@ -42,17 +57,19 @@ export default function ProfileForm({
           setError(uploadError ?? "Gagal mengunggah avatar.");
           return;
         }
-        avatarUrl = url;
+        nextAvatarUrl = url;
       }
 
-      const { error: updateError } = await updateProfile(uid, name, avatarUrl);
+      const { error: updateError } = await updateProfile(uid, name, nextAvatarUrl);
       setSaving(false);
       if (updateError) {
         setError(updateError);
         return;
       }
+      setFile(null);
+      setAvatarUrl(nextAvatarUrl);
       setSuccess(true);
-      onSaved?.(name, avatarUrl);
+      onSaved?.(name, nextAvatarUrl);
     } catch {
       setError("Terjadi kesalahan, coba lagi.");
       setSaving(false);
