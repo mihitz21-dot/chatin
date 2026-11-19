@@ -15,6 +15,7 @@ type Profile = { id: string; username: string; name: string; avatar_url: string 
 export default function ChatPage() {
   const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -29,11 +30,17 @@ export default function ChatPage() {
       }
 
       const uid = sessionData.session.user.id;
-      const { data: userRow } = await supabase
+      const { data: userRow, error: profileError } = await supabase
         .from("users")
         .select("id, username, name, avatar_url")
         .eq("id", uid)
         .single();
+
+      if (profileError || !userRow) {
+        setError("Gagal memuat profil. Coba logout dan login kembali.");
+        return;
+      }
+
       setProfile(userRow as Profile);
 
       setMessages(await fetchMessages());
@@ -53,6 +60,17 @@ export default function ChatPage() {
   async function handleLogout() {
     await logoutUser();
     router.push("/");
+  }
+
+  if (error) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center gap-3 p-4 text-center">
+        <p className="text-red-600">{error}</p>
+        <button onClick={handleLogout} className="rounded bg-green-700 px-4 py-2 text-white">
+          Logout
+        </button>
+      </main>
+    );
   }
 
   if (!profile) {
