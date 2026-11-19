@@ -6,6 +6,8 @@ Website chat realtime dengan Next.js 14 dan Supabase.
 
 1. Buat project baru di https://supabase.com
 2. Jalankan isi `supabase/schema.sql` di SQL Editor Supabase.
+   - Project baru: cukup `schema.sql` saja, sudah mencakup seluruh schema fitur percakapan privat.
+   - Project yang sudah dibuat sebelum fitur percakapan privat (schema.sql sudah pernah dijalankan sebelumnya): jalankan juga `supabase/migrations/002_private_conversations.sql` di SQL Editor. Migrasi ini membuat tabel `conversations` dan menambahkan kolom `conversation_id` yang wajib ke tabel `messages`. Perhatian: migrasi ini menjalankan `TRUNCATE` pada tabel `messages`, sehingga seluruh pesan global yang ada (data test) akan hilang.
 3. Matikan konfirmasi email: Supabase Dashboard → Authentication → Providers → Email → matikan toggle "Confirm email". Aplikasi ini berbasis username (bukan email) dan tidak punya flow email apa pun — email konfirmasi akan dikirim ke domain sintetis `@chatapp.local` dan selalu bounce. Jika opsi ini dibiarkan ON (default untuk project Supabase baru), registrasi akan gagal karena `signUp()` tidak langsung menghasilkan session untuk login otomatis.
 4. Aktifkan Realtime untuk tabel `messages` (Database → Replication).
 5. Pastikan Storage punya bucket `media` dan `avatars` (dibuat otomatis oleh schema.sql).
