@@ -46,3 +46,6 @@ next-env.d.ts
 .eslintcache
 .turbo
 .swc
+
+# local worktrees (SDD workspace)
+/.worktrees/
