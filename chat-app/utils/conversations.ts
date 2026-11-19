@@ -14,12 +14,14 @@ export type ConversationSummary = {
   lastMessage: { content: string; type: Message["type"]; created_at: string } | null;
 };
 
-export async function fetchOtherUsers(myUid: string): Promise<OtherUser[]> {
-  const { data } = await supabase
+export async function fetchOtherUsers(
+  myUid: string
+): Promise<{ data: OtherUser[]; error: string | null }> {
+  const { data, error } = await supabase
     .from("users")
     .select("id, username, name, avatar_url")
     .neq("id", myUid);
-  return (data as OtherUser[]) ?? [];
+  return { data: (data as OtherUser[]) ?? [], error: error ? error.message : null };
 }
 
 function canonicalOrder(uidA: string, uidB: string): [string, string] {
@@ -56,22 +58,32 @@ export async function getOrCreateConversation(
   return { id: created.id, error: null };
 }
 
-export async function fetchConversations(myUid: string): Promise<ConversationSummary[]> {
-  const { data: conversations } = await supabase
+export async function fetchConversations(
+  myUid: string
+): Promise<{ data: ConversationSummary[]; error: string | null }> {
+  const { data: conversations, error: conversationsError } = await supabase
     .from("conversations")
     .select("id, user_a_id, user_b_id")
     .or(`user_a_id.eq.${myUid},user_b_id.eq.${myUid}`);
 
-  if (!conversations || conversations.length === 0) return [];
+  if (conversationsError) {
+    return { data: [], error: conversationsError.message };
+  }
+
+  if (!conversations || conversations.length === 0) return { data: [], error: null };
 
   const otherUids = conversations.map((c) =>
     c.user_a_id === myUid ? c.user_b_id : c.user_a_id
   );
 
-  const { data: users } = await supabase
+  const { data: users, error: usersError } = await supabase
     .from("users")
     .select("id, username, name, avatar_url")
     .in("id", otherUids);
+
+  if (usersError) {
+    return { data: [], error: usersError.message };
+  }
 
   const usersById = new Map((users ?? []).map((u) => [u.id, u as OtherUser]));
 
@@ -95,5 +107,5 @@ export async function fetchConversations(myUid: string): Promise<ConversationSum
     });
   }
 
-  return summaries;
+  return { data: summaries, error: null };
 }

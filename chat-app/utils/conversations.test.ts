@@ -14,6 +14,7 @@ describe("fetchOtherUsers", () => {
   it("selects users excluding myUid", async () => {
     const neq = vi.fn().mockResolvedValue({
       data: [{ id: "u2", username: "budi", name: "Budi", avatar_url: null }],
+      error: null,
     });
     const select = vi.fn().mockReturnValue({ neq });
     (supabase.from as any).mockReturnValue({ select });
@@ -23,7 +24,23 @@ describe("fetchOtherUsers", () => {
     expect(supabase.from).toHaveBeenCalledWith("users");
     expect(select).toHaveBeenCalledWith("id, username, name, avatar_url");
     expect(neq).toHaveBeenCalledWith("id", "u1");
-    expect(result).toEqual([{ id: "u2", username: "budi", name: "Budi", avatar_url: null }]);
+    expect(result).toEqual({
+      data: [{ id: "u2", username: "budi", name: "Budi", avatar_url: null }],
+      error: null,
+    });
+  });
+
+  it("surfaces an error from the query instead of swallowing it", async () => {
+    const neq = vi.fn().mockResolvedValue({
+      data: null,
+      error: { message: "network error" },
+    });
+    const select = vi.fn().mockReturnValue({ neq });
+    (supabase.from as any).mockReturnValue({ select });
+
+    const result = await fetchOtherUsers("u1");
+
+    expect(result).toEqual({ data: [], error: "network error" });
   });
 });
 
